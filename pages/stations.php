@@ -143,21 +143,17 @@ if (isset($_GET['edit_id'])) {
                 </div>
                 <div class="form-group">
                     <label>City *</label>
-                    <input type="text" name="city" required list="city-list">
+                    <input type="text" name="city" required list="city-list" placeholder="Type or select existing city">
                     <datalist id="city-list">
                         <?php foreach($cities as $city): ?>
                         <option value="<?php echo $city; ?>">
                         <?php endforeach; ?>
-                        <option value="Dhaka">
-                        <option value="Chittagong">
-                        <option value="Sylhet">
-                        <option value="Rajshahi">
-                        <option value="Khulna">
                     </datalist>
+                    <small style="color: #666; font-size: 12px;">💡 Type to add new city or select from existing</small>
                 </div>
                 <div class="form-group">
-                    <label>Station Code *</label>
-                    <input type="text" name="station_code" required maxlength="10">
+                    <label>Station Code * <small style="color: #666; font-weight: normal;">(Must be unique)</small></label>
+                    <input type="text" name="station_code" required maxlength="10" placeholder="e.g., DKA, CTG">
                 </div>
             </div>
             
