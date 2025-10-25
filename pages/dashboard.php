@@ -91,23 +91,12 @@ $pageTitle = 'Dashboard';
         </div>
         <div class="stat-card">
             <h3>Total Revenue</h3>
-            <div class="stat-value">₹<?php echo number_format($total_revenue, 2); ?></div>
+            <div class="stat-value">৳<?php echo number_format($total_revenue, 2); ?></div>
         </div>
         <div class="stat-card">
             <h3>Average Fare</h3>
-            <div class="stat-value">₹<?php echo number_format($avg_fare, 2); ?></div>
+            <div class="stat-value">৳<?php echo number_format($avg_fare, 2); ?></div>
         </div>
-    </div>
-
-    <!-- SQL Queries Used for Stats -->
-    <div class="card">
-        <h2>📝 SQL Queries Used (COUNT, SUM, AVG)</h2>
-        <?php foreach($queries as $label => $query): ?>
-            <div class="form-group">
-                <label><?php echo $label; ?>:</label>
-                <textarea class="query-box" readonly><?php echo $query; ?></textarea>
-            </div>
-        <?php endforeach; ?>
     </div>
 
     <?php
@@ -117,11 +106,7 @@ $pageTitle = 'Dashboard';
     ?>
 
     <div class="card">
-        <h2>🎫 Bookings by Status (GROUP BY with COUNT)</h2>
-        <div class="query-section">
-            <h3>SQL Query:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_bookings_status; ?></textarea>
-        </div>
+        <h2>🎫 Bookings by Status</h2>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -149,11 +134,7 @@ $pageTitle = 'Dashboard';
     ?>
 
     <div class="card">
-        <h2>🚂 Trains by Type (GROUP BY with COUNT)</h2>
-        <div class="query-section">
-            <h3>SQL Query:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_trains_type; ?></textarea>
-        </div>
+        <h2>🚂 Trains by Type</h2>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -186,11 +167,7 @@ $pageTitle = 'Dashboard';
     ?>
 
     <div class="card">
-        <h2>💰 Top 5 Revenue Generating Trips (GROUP BY with SUM, ORDER BY, LIMIT)</h2>
-        <div class="query-section">
-            <h3>SQL Query:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_revenue_trip; ?></textarea>
-        </div>
+        <h2>💰 Top 5 Revenue Generating Trips</h2>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -205,7 +182,7 @@ $pageTitle = 'Dashboard';
                     <tr>
                         <td><?php echo $row['trip_id']; ?></td>
                         <td><?php echo $row['bookings']; ?></td>
-                        <td>₹<?php echo number_format($row['revenue'], 2); ?></td>
+                        <td>৳<?php echo number_format($row['revenue'], 2); ?></td>
                     </tr>
                     <?php endwhile; ?>
                 </tbody>
@@ -225,11 +202,7 @@ $pageTitle = 'Dashboard';
     ?>
 
     <div class="card">
-        <h2>👥 Active Passengers (GROUP BY with HAVING)</h2>
-        <div class="query-section">
-            <h3>SQL Query:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_active_passengers; ?></textarea>
-        </div>
+        <h2>👥 Active Passengers</h2>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -247,7 +220,7 @@ $pageTitle = 'Dashboard';
                     <tr>
                         <td><?php echo $row['passenger_id']; ?></td>
                         <td><?php echo $row['booking_count']; ?></td>
-                        <td>₹<?php echo number_format($row['total_spent'], 2); ?></td>
+                        <td>৳<?php echo number_format($row['total_spent'], 2); ?></td>
                     </tr>
                     <?php 
                         endwhile;

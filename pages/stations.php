@@ -5,6 +5,14 @@ $pageTitle = 'Stations';
 $message = '';
 $generatedQuery = '';
 $action = '';
+$showQueryBox = false;
+
+// Get all cities for dropdown
+$cities_result = $conn->query("SELECT DISTINCT city FROM stations ORDER BY city");
+$cities = [];
+while($row = $cities_result->fetch_assoc()) {
+    $cities[] = $row['city'];
+}
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -12,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($action == 'generate') {
         $operation = $_POST['operation'] ?? '';
+        $showQueryBox = true;
         
         if ($operation == 'create') {
             $station_name = escapeString($conn, $_POST['station_name']);
@@ -31,17 +40,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $generatedQuery = "DELETE FROM stations WHERE station_id=$station_id";
         }
         elseif ($operation == 'search') {
-            $search_field = $_POST['search_field'];
+            $search_field = $_POST['search_field'] ?? 'station_name';
             $search_value = escapeString($conn, $_POST['search_value']);
             $order_by = $_POST['order_by'] ?? 'station_id';
             $order_dir = $_POST['order_dir'] ?? 'ASC';
             $limit = (int)($_POST['limit'] ?? 10);
             
-            $generatedQuery = "SELECT * FROM stations WHERE $search_field LIKE '%$search_value%' ORDER BY $order_by $order_dir LIMIT $limit";
+            if (!empty($search_value)) {
+                $generatedQuery = "SELECT * FROM stations WHERE $search_field LIKE '%$search_value%' ORDER BY $order_by $order_dir LIMIT $limit";
+            } else {
+                $generatedQuery = "SELECT * FROM stations ORDER BY $order_by $order_dir LIMIT $limit";
+            }
         }
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
+        $showQueryBox = true;
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
@@ -52,9 +66,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get all stations for display (default view)
+// Get all stations for display (default view - NO QUERY SHOWN)
 $sql_view = "SELECT * FROM stations ORDER BY station_id DESC";
 $stations_result = $conn->query($sql_view);
+
+// Get station for edit if edit_id is provided
+$edit_station = null;
+if (isset($_GET['edit_id'])) {
+    $edit_id = (int)$_GET['edit_id'];
+    $edit_result = $conn->query("SELECT * FROM stations WHERE station_id = $edit_id");
+    $edit_station = $edit_result->fetch_assoc();
+}
 ?>
 <?php include '../includes/header.php'; ?>
 <?php include '../includes/sidebar.php'; ?>
@@ -66,10 +88,21 @@ $stations_result = $conn->query($sql_view);
 
     <?php echo $message; ?>
 
-    <!-- Add New Station -->
+    <!-- Single Operations Card -->
     <div class="card">
-        <h2>➕ Add New Station</h2>
-        <form method="POST" action="">
+        <h2>🔧 Station Operations</h2>
+        
+        <!-- Operation Selector -->
+        <div class="form-group">
+            <label><strong>Select Operation:</strong></label>
+            <select id="operation-selector" onchange="switchOperation(this.value)" class="operation-select">
+                <option value="create">➕ Add New Station</option>
+                <option value="search">🔍 Search & Filter Stations</option>
+            </select>
+        </div>
+
+        <!-- CREATE Operation Form -->
+        <form method="POST" action="" id="form-create" style="display: block;">
             <input type="hidden" name="operation" value="create">
             <div class="form-row">
                 <div class="form-group">
@@ -78,7 +111,17 @@ $stations_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>City *</label>
-                    <input type="text" name="city" required>
+                    <input type="text" name="city" required list="city-list">
+                    <datalist id="city-list">
+                        <?php foreach($cities as $city): ?>
+                        <option value="<?php echo $city; ?>">
+                        <?php endforeach; ?>
+                        <option value="Dhaka">
+                        <option value="Chittagong">
+                        <option value="Sylhet">
+                        <option value="Rajshahi">
+                        <option value="Khulna">
+                    </datalist>
                 </div>
                 <div class="form-group">
                     <label>Station Code *</label>
@@ -86,7 +129,7 @@ $stations_result = $conn->query($sql_view);
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'create'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'create'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
@@ -101,12 +144,9 @@ $stations_result = $conn->query($sql_view);
             </div>
             <?php endif; ?>
         </form>
-    </div>
 
-    <!-- Search/Filter Stations -->
-    <div class="card">
-        <h2>🔍 Search & Filter Stations (WHERE, ORDER BY, LIMIT)</h2>
-        <form method="POST" action="">
+        <!-- SEARCH Operation Form -->
+        <form method="POST" action="" id="form-search" style="display: none;">
             <input type="hidden" name="operation" value="search">
             <div class="form-row">
                 <div class="form-group">
@@ -119,7 +159,7 @@ $stations_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Search Value</label>
-                    <input type="text" name="search_value" required>
+                    <input type="text" name="search_value" placeholder="Leave empty for all">
                 </div>
                 <div class="form-group">
                     <label>Order By</label>
@@ -127,6 +167,7 @@ $stations_result = $conn->query($sql_view);
                         <option value="station_id">Station ID</option>
                         <option value="station_name">Station Name</option>
                         <option value="city">City</option>
+                        <option value="station_code">Station Code</option>
                         <option value="created_at">Created Date</option>
                     </select>
                 </div>
@@ -139,17 +180,23 @@ $stations_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Limit</label>
-                    <input type="number" name="limit" value="10" min="1" max="100">
+                    <select name="limit">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'search'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'search'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
             </div>
             <div class="btn-group">
-                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Search</button>
+                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Query</button>
                 <button type="submit" name="action" value="generate" class="btn btn-secondary">🔄 Regenerate</button>
             </div>
             <?php else: ?>
@@ -160,13 +207,62 @@ $stations_result = $conn->query($sql_view);
         </form>
     </div>
 
-    <!-- View All Stations -->
+    <script>
+    function switchOperation(operation) {
+        // Hide all forms
+        document.getElementById('form-create').style.display = 'none';
+        document.getElementById('form-search').style.display = 'none';
+        
+        // Show selected form
+        document.getElementById('form-' + operation).style.display = 'block';
+    }
+    </script>
+
+    <!-- Update Station -->
+    <?php if ($edit_station): ?>
+    <div class="card">
+        <h2>✏️ Update Station #<?php echo $edit_station['station_id']; ?></h2>
+        <form method="POST" action="">
+            <input type="hidden" name="operation" value="update">
+            <input type="hidden" name="station_id" value="<?php echo $edit_station['station_id']; ?>">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Station Name *</label>
+                    <input type="text" name="station_name" value="<?php echo $edit_station['station_name']; ?>" required>
+                </div>
+                <div class="form-group">
+                    <label>City *</label>
+                    <input type="text" name="city" value="<?php echo $edit_station['city']; ?>" required>
+                </div>
+                <div class="form-group">
+                    <label>Station Code *</label>
+                    <input type="text" name="station_code" value="<?php echo $edit_station['station_code']; ?>" required maxlength="10">
+                </div>
+            </div>
+            
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'update'): ?>
+            <div class="query-section">
+                <h3>📝 Generated SQL Query:</h3>
+                <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
+            </div>
+            <div class="btn-group">
+                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Query</button>
+                <button type="submit" name="action" value="generate" class="btn btn-secondary">🔄 Regenerate</button>
+                <a href="stations.php" class="btn btn-secondary">Cancel</a>
+            </div>
+            <?php else: ?>
+            <div class="btn-group">
+                <button type="submit" name="action" value="generate" class="btn btn-primary">Generate UPDATE Query</button>
+                <a href="stations.php" class="btn btn-secondary">Cancel</a>
+            </div>
+            <?php endif; ?>
+        </form>
+    </div>
+    <?php endif; ?>
+
+    <!-- All Stations List -->
     <div class="card">
         <h2>📋 All Stations</h2>
-        <div class="query-section">
-            <h3>📝 Query Used:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_view; ?></textarea>
-        </div>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -174,114 +270,62 @@ $stations_result = $conn->query($sql_view);
                         <th>ID</th>
                         <th>Station Name</th>
                         <th>City</th>
-                        <th>Station Code</th>
+                        <th>Code</th>
                         <th>Created At</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if($stations_result->num_rows > 0): ?>
-                        <?php while($row = $stations_result->fetch_assoc()): ?>
-                        <tr>
-                            <td><?php echo $row['station_id']; ?></td>
-                            <td><?php echo $row['station_name']; ?></td>
-                            <td><?php echo $row['city']; ?></td>
-                            <td><?php echo $row['station_code']; ?></td>
-                            <td><?php echo date('Y-m-d H:i', strtotime($row['created_at'])); ?></td>
-                            <td class="action-buttons">
-                                <button onclick="editStation(<?php echo htmlspecialchars(json_encode($row)); ?>)" class="btn btn-primary btn-small">Edit</button>
-                                <button onclick="deleteStation(<?php echo $row['station_id']; ?>, '<?php echo $row['station_name']; ?>')" class="btn btn-danger btn-small">Delete</button>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6" style="text-align: center;">No stations found</td>
-                        </tr>
+                    <?php 
+                    if ($stations_result->num_rows > 0):
+                        while($row = $stations_result->fetch_assoc()): 
+                    ?>
+                    <tr>
+                        <td><?php echo $row['station_id']; ?></td>
+                        <td><?php echo $row['station_name']; ?></td>
+                        <td><?php echo $row['city']; ?></td>
+                        <td><?php echo $row['station_code']; ?></td>
+                        <td><?php echo date('Y-m-d H:i', strtotime($row['created_at'])); ?></td>
+                        <td>
+                            <a href="?edit_id=<?php echo $row['station_id']; ?>" class="btn-small btn-primary">Edit</a>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this station?');">
+                                <input type="hidden" name="operation" value="delete">
+                                <input type="hidden" name="station_id" value="<?php echo $row['station_id']; ?>">
+                                <button type="submit" name="action" value="generate" class="btn-small btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php 
+                        endwhile;
+                    else:
+                    ?>
+                    <tr>
+                        <td colspan="6" style="text-align: center;">No stations found</td>
+                    </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>✏️ Edit Station</h2>
+    <!-- Delete Confirmation -->
+    <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'delete'): ?>
+    <div class="card">
+        <h2>🗑️ Delete Station</h2>
+        <form method="POST" action="">
+            <div class="query-section">
+                <h3>📝 Generated SQL Query:</h3>
+                <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
             </div>
-            <form method="POST" action="">
-                <input type="hidden" name="operation" value="update">
-                <input type="hidden" name="station_id" id="edit_station_id">
-                <div class="form-group">
-                    <label>Station Name *</label>
-                    <input type="text" name="station_name" id="edit_station_name" required>
-                </div>
-                <div class="form-group">
-                    <label>City *</label>
-                    <input type="text" name="city" id="edit_city" required>
-                </div>
-                <div class="form-group">
-                    <label>Station Code *</label>
-                    <input type="text" name="station_code" id="edit_station_code" required maxlength="10">
-                </div>
-                
-                <div class="btn-group">
-                    <button type="submit" name="action" value="generate" class="btn btn-primary">Generate UPDATE Query</button>
-                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Delete Modal -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>🗑️ Delete Station</h2>
+            <p class="warning">⚠️ Warning: This will permanently delete the station and all related records!</p>
+            <div class="btn-group">
+                <button type="submit" name="action" value="execute" class="btn btn-danger">✓ Confirm Delete</button>
+                <a href="stations.php" class="btn btn-secondary">Cancel</a>
             </div>
-            <form method="POST" action="">
-                <input type="hidden" name="operation" value="delete">
-                <input type="hidden" name="station_id" id="delete_station_id">
-                <p>Are you sure you want to delete station: <strong id="delete_station_name"></strong>?</p>
-                
-                <div class="btn-group">
-                    <button type="submit" name="action" value="generate" class="btn btn-primary">Generate DELETE Query</button>
-                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </div>
+        </form>
     </div>
+    <?php endif; ?>
 
 </div>
-
-<script>
-function editStation(station) {
-    document.getElementById('edit_station_id').value = station.station_id;
-    document.getElementById('edit_station_name').value = station.station_name;
-    document.getElementById('edit_city').value = station.city;
-    document.getElementById('edit_station_code').value = station.station_code;
-    document.getElementById('editModal').classList.add('active');
-}
-
-function deleteStation(id, name) {
-    document.getElementById('delete_station_id').value = id;
-    document.getElementById('delete_station_name').textContent = name;
-    document.getElementById('deleteModal').classList.add('active');
-}
-
-function closeModal() {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.classList.remove('active');
-    });
-}
-
-// Close modal when clicking outside
-window.onclick = function(event) {
-    if (event.target.classList.contains('modal')) {
-        closeModal();
-    }
-}
-</script>
 
 <?php include '../includes/footer.php'; ?>
