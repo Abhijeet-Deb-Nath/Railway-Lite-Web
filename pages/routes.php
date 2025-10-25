@@ -4,6 +4,11 @@ $pageTitle = 'Routes';
 
 $message = '';
 $generatedQuery = '';
+$executedQuery = '';
+$action = '';
+$showQueryBox = false;
+$currentOperation = 'create'; // Default tab
+$search_results = null;
 
 // Get stations for dropdowns
 $stations_query = "SELECT station_id, station_name, station_code FROM stations ORDER BY station_name";
@@ -15,9 +20,11 @@ while($row = $stations_result->fetch_assoc()) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
+    $currentOperation = $_POST['operation'] ?? 'create'; // Remember which tab was active
     
     if ($action == 'generate') {
         $operation = $_POST['operation'] ?? '';
+        $showQueryBox = true;
         
         if ($operation == 'create') {
             $from_station_id = (int)$_POST['from_station_id'];
@@ -50,10 +57,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
+        $executedQuery = $generatedQuery;
+        $showQueryBox = true;
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
             $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
+            
+            // For INSERT/UPDATE/DELETE - redirect to refresh list
+            if (stripos($generatedQuery, 'INSERT') === 0 || 
+                stripos($generatedQuery, 'UPDATE') === 0 || 
+                stripos($generatedQuery, 'DELETE') === 0) {
+                header("Location: routes.php?success=1");
+                exit;
+            }
+            // For SELECT - execute and show results
+            elseif (stripos($generatedQuery, 'SELECT') === 0) {
+                $search_results = $conn->query($generatedQuery);
+            }
         } else {
             // Check for constraint errors
             $error_msg = $result['error'];
@@ -66,12 +87,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// Check for redirect success message
+if (isset($_GET['success'])) {
+    $message = '<div class="alert alert-success">✓ Operation completed successfully!</div>';
+}
+
 $sql_view = "SELECT r.*, s1.station_name as from_name, s2.station_name as to_name 
              FROM routes r 
              INNER JOIN stations s1 ON r.from_station_id = s1.station_id 
              INNER JOIN stations s2 ON r.to_station_id = s2.station_id 
              ORDER BY r.route_id DESC";
-$routes_result = $conn->query($sql_view);
+$routes_result = $search_results ?? $conn->query($sql_view);
+$list_title = $search_results ? "Search Results" : "All Routes";
 ?>
 <?php include '../includes/header.php'; ?>
 <?php include '../includes/sidebar.php'; ?>
@@ -83,9 +110,21 @@ $routes_result = $conn->query($sql_view);
 
     <?php echo $message; ?>
 
+    <!-- Single Operations Card -->
     <div class="card">
-        <h2>➕ Add New Route</h2>
-        <form method="POST" action="">
+        <h2>🔧 Route Operations</h2>
+        
+        <!-- Operation Selector -->
+        <div class="form-group">
+            <label><strong>Select Operation:</strong></label>
+            <select id="operation-selector" onchange="switchOperation(this.value)" class="operation-select">
+                <option value="create" <?php echo $currentOperation == 'create' ? 'selected' : ''; ?>>➕ Add New Route</option>
+                <option value="search" <?php echo $currentOperation == 'search' ? 'selected' : ''; ?>>🔍 Search & Filter Routes</option>
+            </select>
+        </div>
+
+        <!-- CREATE Operation Form -->
+        <form method="POST" action="" id="form-create" style="display: <?php echo $currentOperation == 'create' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="create">
             <div class="form-row">
                 <div class="form-group">
@@ -120,7 +159,7 @@ $routes_result = $conn->query($sql_view);
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'create'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'create'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
@@ -135,20 +174,18 @@ $routes_result = $conn->query($sql_view);
             </div>
             <?php endif; ?>
         </form>
-    </div>
 
-    <div class="card">
-        <h2>🔍 Filter Routes by Distance (WHERE with Range)</h2>
-        <form method="POST" action="">
+        <!-- SEARCH Operation Form -->
+        <form method="POST" action="" id="form-search" style="display: <?php echo $currentOperation == 'search' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="search">
             <div class="form-row">
                 <div class="form-group">
                     <label>Min Distance (KM)</label>
-                    <input type="number" name="min_distance" value="0" step="0.01" min="0">
+                    <input type="number" name="min_distance" value="0" step="0.01" min="0" placeholder="0">
                 </div>
                 <div class="form-group">
                     <label>Max Distance (KM)</label>
-                    <input type="number" name="max_distance" value="1000" step="0.01" min="0">
+                    <input type="number" name="max_distance" value="1000" step="0.01" min="0" placeholder="1000">
                 </div>
                 <div class="form-group">
                     <label>Order By</label>
@@ -156,6 +193,7 @@ $routes_result = $conn->query($sql_view);
                         <option value="route_id">Route ID</option>
                         <option value="distance_km">Distance</option>
                         <option value="base_fare">Base Fare</option>
+                        <option value="created_at">Created Date</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -167,17 +205,23 @@ $routes_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Limit</label>
-                    <input type="number" name="limit" value="10" min="1" max="100">
+                    <select name="limit">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'search'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'search'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
             </div>
             <div class="btn-group">
-                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Search</button>
+                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Query</button>
                 <button type="submit" name="action" value="generate" class="btn btn-secondary">🔄 Regenerate</button>
             </div>
             <?php else: ?>
@@ -188,12 +232,35 @@ $routes_result = $conn->query($sql_view);
         </form>
     </div>
 
+    <script>
+    // Switch operation tabs
+    function switchOperation(operation) {
+        document.getElementById('form-create').style.display = 'none';
+        document.getElementById('form-search').style.display = 'none';
+        document.getElementById('form-' + operation).style.display = 'block';
+    }
+    
+    // On page load, show the correct tab based on server state
+    window.addEventListener('DOMContentLoaded', function() {
+        var currentOp = '<?php echo $currentOperation; ?>';
+        switchOperation(currentOp);
+        document.getElementById('operation-selector').value = currentOp;
+    });
+    </script>
+
+    <!-- Executed Query Display -->
+    <?php if (!empty($executedQuery)): ?>
     <div class="card">
-        <h2>📋 All Routes (with INNER JOIN)</h2>
+        <h2>✅ Executed Query</h2>
         <div class="query-section">
-            <h3>📝 Query Used (Joining routes with stations):</h3>
-            <textarea class="query-box" readonly><?php echo $sql_view; ?></textarea>
+            <textarea class="query-box" readonly><?php echo $executedQuery; ?></textarea>
         </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Routes List (All or Filtered) -->
+    <div class="card">
+        <h2>📋 <?php echo $list_title; ?></h2>
         <div class="table-wrapper">
             <table>
                 <thead>
