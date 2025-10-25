@@ -44,14 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $generatedQuery = "DELETE FROM stations WHERE station_id=$station_id";
         }
         elseif ($operation == 'search') {
-            $search_field = $_POST['search_field'] ?? 'station_name';
             $search_value = escapeString($conn, $_POST['search_value']);
             $order_by = $_POST['order_by'] ?? 'station_id';
             $order_dir = $_POST['order_dir'] ?? 'ASC';
             $limit = (int)($_POST['limit'] ?? 10);
             
             if (!empty($search_value)) {
-                $generatedQuery = "SELECT * FROM stations WHERE $search_field LIKE '%$search_value%' ORDER BY $order_by $order_dir LIMIT $limit";
+                $generatedQuery = "SELECT * FROM stations WHERE city = '$search_value' ORDER BY $order_by $order_dir LIMIT $limit";
             } else {
                 $generatedQuery = "SELECT * FROM stations ORDER BY $order_by $order_dir LIMIT $limit";
             }
@@ -78,7 +77,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $search_results = $conn->query($generatedQuery);
             }
         } else {
-            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            // Check for duplicate entry error
+            $error_msg = $result['error'];
+            if (strpos($error_msg, 'Duplicate entry') !== false) {
+                if (strpos($error_msg, 'station_code') !== false) {
+                    $message = '<div class="alert alert-error">✗ Error: Station Code already exists! Each station must have a unique station code.</div>';
+                } else {
+                    $message = '<div class="alert alert-error">✗ Error: Duplicate entry detected. Please use unique values.</div>';
+                }
+            } else {
+                $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
+            }
         }
     }
 }
@@ -173,16 +182,13 @@ if (isset($_GET['edit_id'])) {
             <input type="hidden" name="operation" value="search">
             <div class="form-row">
                 <div class="form-group">
-                    <label>Search Field</label>
-                    <select name="search_field">
-                        <option value="station_name">Station Name</option>
-                        <option value="city">City</option>
-                        <option value="station_code">Station Code</option>
+                    <label>Filter by City</label>
+                    <select name="search_value">
+                        <option value="">-- Select City (or All) --</option>
+                        <?php foreach($cities as $city): ?>
+                        <option value="<?php echo $city; ?>"><?php echo $city; ?></option>
+                        <?php endforeach; ?>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label>Search Value</label>
-                    <input type="text" name="search_value" placeholder="Leave empty for all">
                 </div>
                 <div class="form-group">
                     <label>Order By</label>
