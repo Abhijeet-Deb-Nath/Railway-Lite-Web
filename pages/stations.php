@@ -4,8 +4,11 @@ $pageTitle = 'Stations';
 
 $message = '';
 $generatedQuery = '';
+$executedQuery = '';
 $action = '';
 $showQueryBox = false;
+$currentOperation = 'create'; // Default tab
+$search_results = null;
 
 // Get all cities for dropdown
 $cities_result = $conn->query("SELECT DISTINCT city FROM stations ORDER BY city");
@@ -17,6 +20,7 @@ while($row = $cities_result->fetch_assoc()) {
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
+    $currentOperation = $_POST['operation'] ?? 'create'; // Remember which tab was active
     
     if ($action == 'generate') {
         $operation = $_POST['operation'] ?? '';
@@ -55,20 +59,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
+        $executedQuery = $generatedQuery;
         $showQueryBox = true;
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
             $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
+            
+            // For INSERT/UPDATE/DELETE - redirect to refresh list
+            if (stripos($generatedQuery, 'INSERT') === 0 || 
+                stripos($generatedQuery, 'UPDATE') === 0 || 
+                stripos($generatedQuery, 'DELETE') === 0) {
+                header("Location: stations.php?success=1");
+                exit;
+            }
+            // For SELECT - execute and show results
+            elseif (stripos($generatedQuery, 'SELECT') === 0) {
+                $search_results = $conn->query($generatedQuery);
+            }
         } else {
             $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
         }
     }
 }
 
+// Check for redirect success message
+if (isset($_GET['success'])) {
+    $message = '<div class="alert alert-success">✓ Operation completed successfully!</div>';
+}
+
 // Get all stations for display (default view - NO QUERY SHOWN)
 $sql_view = "SELECT * FROM stations ORDER BY station_id DESC";
-$stations_result = $conn->query($sql_view);
+$stations_result = $search_results ?? $conn->query($sql_view);
+$list_title = $search_results ? "Search Results" : "All Stations";
 
 // Get station for edit if edit_id is provided
 $edit_station = null;
@@ -96,13 +119,13 @@ if (isset($_GET['edit_id'])) {
         <div class="form-group">
             <label><strong>Select Operation:</strong></label>
             <select id="operation-selector" onchange="switchOperation(this.value)" class="operation-select">
-                <option value="create">➕ Add New Station</option>
-                <option value="search">🔍 Search & Filter Stations</option>
+                <option value="create" <?php echo $currentOperation == 'create' ? 'selected' : ''; ?>>➕ Add New Station</option>
+                <option value="search" <?php echo $currentOperation == 'search' ? 'selected' : ''; ?>>🔍 Search & Filter Stations</option>
             </select>
         </div>
 
         <!-- CREATE Operation Form -->
-        <form method="POST" action="" id="form-create" style="display: block;">
+        <form method="POST" action="" id="form-create" style="display: <?php echo $currentOperation == 'create' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="create">
             <div class="form-row">
                 <div class="form-group">
@@ -146,7 +169,7 @@ if (isset($_GET['edit_id'])) {
         </form>
 
         <!-- SEARCH Operation Form -->
-        <form method="POST" action="" id="form-search" style="display: none;">
+        <form method="POST" action="" id="form-search" style="display: <?php echo $currentOperation == 'search' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="search">
             <div class="form-row">
                 <div class="form-group">
@@ -208,6 +231,7 @@ if (isset($_GET['edit_id'])) {
     </div>
 
     <script>
+    // Switch operation tabs
     function switchOperation(operation) {
         // Hide all forms
         document.getElementById('form-create').style.display = 'none';
@@ -216,6 +240,13 @@ if (isset($_GET['edit_id'])) {
         // Show selected form
         document.getElementById('form-' + operation).style.display = 'block';
     }
+    
+    // On page load, show the correct tab based on server state
+    window.addEventListener('DOMContentLoaded', function() {
+        var currentOp = '<?php echo $currentOperation; ?>';
+        switchOperation(currentOp);
+        document.getElementById('operation-selector').value = currentOp;
+    });
     </script>
 
     <!-- Update Station -->
@@ -260,9 +291,19 @@ if (isset($_GET['edit_id'])) {
     </div>
     <?php endif; ?>
 
-    <!-- All Stations List -->
+    <!-- Executed Query Display -->
+    <?php if (!empty($executedQuery)): ?>
     <div class="card">
-        <h2>📋 All Stations</h2>
+        <h2>✅ Executed Query</h2>
+        <div class="query-section">
+            <textarea class="query-box" readonly><?php echo $executedQuery; ?></textarea>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Stations List (All or Filtered) -->
+    <div class="card">
+        <h2>📋 <?php echo $list_title; ?></h2>
         <div class="table-wrapper">
             <table>
                 <thead>
