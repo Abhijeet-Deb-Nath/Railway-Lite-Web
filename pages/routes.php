@@ -55,7 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($result['success']) {
             $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
         } else {
-            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            // Check for constraint errors
+            $error_msg = $result['error'];
+            if (strpos($error_msg, 'chk_different_stations') !== false) {
+                $message = '<div class="alert alert-error">✗ Error: From Station and To Station must be different!</div>';
+            } else {
+                $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
+            }
         }
     }
 }
@@ -94,7 +100,7 @@ $routes_result = $conn->query($sql_view);
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>To Station *</label>
+                    <label>To Station * <small style="color: #666; font-weight: normal;">(Must differ from "From")</small></label>
                     <select name="to_station_id" required>
                         <option value="">Select Station</option>
                         <?php foreach($stations as $station): ?>
@@ -106,11 +112,11 @@ $routes_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Distance (KM) *</label>
-                    <input type="number" name="distance_km" step="0.01" min="0" required>
+                    <input type="number" name="distance_km" step="0.01" min="0.01" required placeholder="e.g., 320.00">
                 </div>
                 <div class="form-group">
-                    <label>Base Fare (₹) *</label>
-                    <input type="number" name="base_fare" step="0.01" min="0" required>
+                    <label>Base Fare (৳) *</label>
+                    <input type="number" name="base_fare" step="0.01" min="0.01" required placeholder="e.g., 450.00">
                 </div>
             </div>
             

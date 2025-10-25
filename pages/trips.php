@@ -138,19 +138,20 @@ $trips_result = $conn->query($sql_view);
             <div class="form-row">
                 <div class="form-group">
                     <label>Trip Date *</label>
-                    <input type="date" name="trip_date" required>
+                    <input type="date" name="trip_date" required min="<?php echo date('Y-m-d'); ?>">
+                    <small style="color: #666; font-size: 12px;">💡 Cannot schedule past dates</small>
                 </div>
                 <div class="form-group">
                     <label>Departure Time *</label>
-                    <input type="time" name="departure_time" required>
+                    <input type="time" name="departure_time" required placeholder="HH:MM">
                 </div>
                 <div class="form-group">
                     <label>Arrival Time *</label>
-                    <input type="time" name="arrival_time" required>
+                    <input type="time" name="arrival_time" required placeholder="HH:MM">
                 </div>
                 <div class="form-group">
                     <label>Available Seats *</label>
-                    <input type="number" name="available_seats" value="200" min="0" required>
+                    <input type="number" name="available_seats" value="200" min="1" required placeholder="e.g., 450">
                 </div>
                 <div class="form-group">
                     <label>Status *</label>

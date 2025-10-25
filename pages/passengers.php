@@ -45,7 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($result['success']) {
             $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
         } else {
-            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            // Check for duplicate entry error
+            $error_msg = $result['error'];
+            if (strpos($error_msg, 'Duplicate entry') !== false) {
+                if (strpos($error_msg, 'phone') !== false) {
+                    $message = '<div class="alert alert-error">✗ Error: Phone number already exists! Each passenger must have a unique phone number.</div>';
+                } else {
+                    $message = '<div class="alert alert-error">✗ Error: Duplicate entry detected. Please use unique values.</div>';
+                }
+            } else {
+                $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
+            }
         }
     }
 }
@@ -70,15 +80,16 @@ $passengers_result = $conn->query($sql_view);
             <div class="form-row">
                 <div class="form-group">
                     <label>Passenger Name *</label>
-                    <input type="text" name="passenger_name" required>
+                    <input type="text" name="passenger_name" required placeholder="e.g., Md. Kamal Hossain">
                 </div>
                 <div class="form-group">
-                    <label>Phone *</label>
-                    <input type="text" name="phone" required maxlength="15">
+                    <label>Phone * <small style="color: #666; font-weight: normal;">(Must be unique)</small></label>
+                    <input type="text" name="phone" required maxlength="15" placeholder="e.g., 01711223344">
+                    <small style="color: #666; font-size: 12px;">💡 Bangladesh format: 01XXXXXXXXX</small>
                 </div>
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" name="email">
+                    <input type="email" name="email" placeholder="e.g., passenger@email.com">
                 </div>
             </div>
             

@@ -142,11 +142,12 @@ $bookings_result = $conn->query($sql_view);
             <div class="form-row">
                 <div class="form-group">
                     <label>Seats Booked *</label>
-                    <input type="number" name="seats_booked" value="1" min="1" required>
+                    <input type="number" name="seats_booked" value="1" min="1" max="10" required placeholder="e.g., 2">
+                    <small style="color: #666; font-size: 12px;">💡 Max 10 seats per booking</small>
                 </div>
                 <div class="form-group">
-                    <label>Total Fare (₹) *</label>
-                    <input type="number" name="total_fare" step="0.01" min="0" required>
+                    <label>Total Fare (৳) *</label>
+                    <input type="number" name="total_fare" step="0.01" min="0.01" required placeholder="e.g., 450.00">
                 </div>
                 <div class="form-group">
                     <label>Status *</label>

@@ -4,13 +4,23 @@ $pageTitle = 'Trains';
 
 $message = '';
 $generatedQuery = '';
+$executedQuery = '';
 $action = '';
+$showQueryBox = false;
+$currentOperation = 'create'; // Default tab
+$search_results = null;
 
+// Get all train types for dropdown
+$train_types = ['Express', 'Intercity', 'Local', 'Mail'];
+
+// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
+    $currentOperation = $_POST['operation'] ?? 'create'; // Remember which tab was active
     
     if ($action == 'generate') {
         $operation = $_POST['operation'] ?? '';
+        $showQueryBox = true;
         
         if ($operation == 'create') {
             $train_name = escapeString($conn, $_POST['train_name']);
@@ -30,33 +40,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $generatedQuery = "DELETE FROM trains WHERE train_id=$train_id";
         }
         elseif ($operation == 'search') {
-            $search_field = $_POST['search_field'];
-            $search_value = escapeString($conn, $_POST['search_value']);
+            $train_type = $_POST['train_type'] ?? '';
             $order_by = $_POST['order_by'] ?? 'train_id';
             $order_dir = $_POST['order_dir'] ?? 'ASC';
             $limit = (int)($_POST['limit'] ?? 10);
             
-            if ($search_field == 'train_type') {
-                $generatedQuery = "SELECT * FROM trains WHERE $search_field = '$search_value' ORDER BY $order_by $order_dir LIMIT $limit";
+            if (!empty($train_type)) {
+                $generatedQuery = "SELECT * FROM trains WHERE train_type = '$train_type' ORDER BY $order_by $order_dir LIMIT $limit";
             } else {
-                $generatedQuery = "SELECT * FROM trains WHERE $search_field LIKE '%$search_value%' ORDER BY $order_by $order_dir LIMIT $limit";
+                $generatedQuery = "SELECT * FROM trains ORDER BY $order_by $order_dir LIMIT $limit";
             }
         }
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
+        $executedQuery = $generatedQuery;
+        $showQueryBox = true;
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
             $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
+            
+            // For INSERT/UPDATE/DELETE - redirect to refresh list
+            if (stripos($generatedQuery, 'INSERT') === 0 || 
+                stripos($generatedQuery, 'UPDATE') === 0 || 
+                stripos($generatedQuery, 'DELETE') === 0) {
+                header("Location: trains.php?success=1");
+                exit;
+            }
+            // For SELECT - execute and show results
+            elseif (stripos($generatedQuery, 'SELECT') === 0) {
+                $search_results = $conn->query($generatedQuery);
+            }
         } else {
             $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
         }
     }
 }
 
+// Check for redirect success message
+if (isset($_GET['success'])) {
+    $message = '<div class="alert alert-success">✓ Operation completed successfully!</div>';
+}
+
+// Get all trains for display
 $sql_view = "SELECT * FROM trains ORDER BY train_id DESC";
-$trains_result = $conn->query($sql_view);
+$trains_result = $search_results ?? $conn->query($sql_view);
+$list_title = $search_results ? "Search Results" : "All Trains";
+
+// Get train for edit if edit_id is provided
+$edit_train = null;
+if (isset($_GET['edit_id'])) {
+    $edit_id = (int)$_GET['edit_id'];
+    $edit_result = $conn->query("SELECT * FROM trains WHERE train_id = $edit_id");
+    $edit_train = $edit_result->fetch_assoc();
+}
 ?>
 <?php include '../includes/header.php'; ?>
 <?php include '../includes/sidebar.php'; ?>
@@ -68,14 +106,26 @@ $trains_result = $conn->query($sql_view);
 
     <?php echo $message; ?>
 
+    <!-- Single Operations Card -->
     <div class="card">
-        <h2>➕ Add New Train</h2>
-        <form method="POST" action="">
+        <h2>🔧 Train Operations</h2>
+        
+        <!-- Operation Selector -->
+        <div class="form-group">
+            <label><strong>Select Operation:</strong></label>
+            <select id="operation-selector" onchange="switchOperation(this.value)" class="operation-select">
+                <option value="create" <?php echo $currentOperation == 'create' ? 'selected' : ''; ?>>➕ Add New Train</option>
+                <option value="search" <?php echo $currentOperation == 'search' ? 'selected' : ''; ?>>🔍 Search & Filter Trains</option>
+            </select>
+        </div>
+
+        <!-- CREATE Operation Form -->
+        <form method="POST" action="" id="form-create" style="display: <?php echo $currentOperation == 'create' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="create">
             <div class="form-row">
                 <div class="form-group">
                     <label>Train Name *</label>
-                    <input type="text" name="train_name" required>
+                    <input type="text" name="train_name" required placeholder="e.g., Suborna Express">
                 </div>
                 <div class="form-group">
                     <label>Train Type *</label>
@@ -89,11 +139,11 @@ $trains_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Total Seats *</label>
-                    <input type="number" name="total_seats" value="200" min="1" required>
+                    <input type="number" name="total_seats" required min="1" placeholder="e.g., 450">
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'create'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'create'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
@@ -108,23 +158,20 @@ $trains_result = $conn->query($sql_view);
             </div>
             <?php endif; ?>
         </form>
-    </div>
 
-    <div class="card">
-        <h2>🔍 Search & Filter Trains (WHERE, ORDER BY, LIMIT)</h2>
-        <form method="POST" action="">
+        <!-- SEARCH Operation Form -->
+        <form method="POST" action="" id="form-search" style="display: <?php echo $currentOperation == 'search' ? 'block' : 'none'; ?>;">
             <input type="hidden" name="operation" value="search">
             <div class="form-row">
                 <div class="form-group">
-                    <label>Search Field</label>
-                    <select name="search_field">
-                        <option value="train_name">Train Name</option>
-                        <option value="train_type">Train Type</option>
+                    <label>Filter by Train Type</label>
+                    <select name="train_type">
+                        <option value="">-- Select Type (or All) --</option>
+                        <option value="Express">Express</option>
+                        <option value="Intercity">Intercity</option>
+                        <option value="Local">Local</option>
+                        <option value="Mail">Mail</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label>Search Value</label>
-                    <input type="text" name="search_value" required>
                 </div>
                 <div class="form-group">
                     <label>Order By</label>
@@ -133,6 +180,7 @@ $trains_result = $conn->query($sql_view);
                         <option value="train_name">Train Name</option>
                         <option value="train_type">Train Type</option>
                         <option value="total_seats">Total Seats</option>
+                        <option value="created_at">Created Date</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -144,17 +192,23 @@ $trains_result = $conn->query($sql_view);
                 </div>
                 <div class="form-group">
                     <label>Limit</label>
-                    <input type="number" name="limit" value="10" min="1" max="100">
+                    <select name="limit">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
                 </div>
             </div>
             
-            <?php if ($generatedQuery && $_POST['operation'] == 'search'): ?>
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'search'): ?>
             <div class="query-section">
                 <h3>📝 Generated SQL Query:</h3>
                 <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
             </div>
             <div class="btn-group">
-                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Search</button>
+                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Query</button>
                 <button type="submit" name="action" value="generate" class="btn btn-secondary">🔄 Regenerate</button>
             </div>
             <?php else: ?>
@@ -165,129 +219,145 @@ $trains_result = $conn->query($sql_view);
         </form>
     </div>
 
+    <script>
+    // Switch operation tabs
+    function switchOperation(operation) {
+        document.getElementById('form-create').style.display = 'none';
+        document.getElementById('form-search').style.display = 'none';
+        document.getElementById('form-' + operation).style.display = 'block';
+    }
+    
+    // On page load, show the correct tab based on server state
+    window.addEventListener('DOMContentLoaded', function() {
+        var currentOp = '<?php echo $currentOperation; ?>';
+        switchOperation(currentOp);
+        document.getElementById('operation-selector').value = currentOp;
+    });
+    </script>
+
+    <!-- Update Train -->
+    <?php if ($edit_train): ?>
     <div class="card">
-        <h2>📋 All Trains</h2>
+        <h2>✏️ Update Train #<?php echo $edit_train['train_id']; ?></h2>
+        <form method="POST" action="">
+            <input type="hidden" name="operation" value="update">
+            <input type="hidden" name="train_id" value="<?php echo $edit_train['train_id']; ?>">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Train Name *</label>
+                    <input type="text" name="train_name" value="<?php echo $edit_train['train_name']; ?>" required>
+                </div>
+                <div class="form-group">
+                    <label>Train Type *</label>
+                    <select name="train_type" required>
+                        <option value="Express" <?php echo $edit_train['train_type'] == 'Express' ? 'selected' : ''; ?>>Express</option>
+                        <option value="Intercity" <?php echo $edit_train['train_type'] == 'Intercity' ? 'selected' : ''; ?>>Intercity</option>
+                        <option value="Local" <?php echo $edit_train['train_type'] == 'Local' ? 'selected' : ''; ?>>Local</option>
+                        <option value="Mail" <?php echo $edit_train['train_type'] == 'Mail' ? 'selected' : ''; ?>>Mail</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Total Seats *</label>
+                    <input type="number" name="total_seats" value="<?php echo $edit_train['total_seats']; ?>" required min="1">
+                </div>
+            </div>
+            
+            <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'update'): ?>
+            <div class="query-section">
+                <h3>📝 Generated SQL Query:</h3>
+                <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
+            </div>
+            <div class="btn-group">
+                <button type="submit" name="action" value="execute" class="btn btn-success">✓ Execute Query</button>
+                <button type="submit" name="action" value="generate" class="btn btn-secondary">🔄 Regenerate</button>
+                <a href="trains.php" class="btn btn-secondary">Cancel</a>
+            </div>
+            <?php else: ?>
+            <div class="btn-group">
+                <button type="submit" name="action" value="generate" class="btn btn-primary">Generate UPDATE Query</button>
+                <a href="trains.php" class="btn btn-secondary">Cancel</a>
+            </div>
+            <?php endif; ?>
+        </form>
+    </div>
+    <?php endif; ?>
+
+    <!-- Executed Query Display -->
+    <?php if (!empty($executedQuery)): ?>
+    <div class="card">
+        <h2>✅ Executed Query</h2>
         <div class="query-section">
-            <h3>📝 Query Used:</h3>
-            <textarea class="query-box" readonly><?php echo $sql_view; ?></textarea>
+            <textarea class="query-box" readonly><?php echo $executedQuery; ?></textarea>
         </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Trains List (All or Filtered) -->
+    <div class="card">
+        <h2>📋 <?php echo $list_title; ?></h2>
         <div class="table-wrapper">
             <table>
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Train Name</th>
-                        <th>Train Type</th>
+                        <th>Type</th>
                         <th>Total Seats</th>
                         <th>Created At</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if($trains_result->num_rows > 0): ?>
-                        <?php while($row = $trains_result->fetch_assoc()): ?>
-                        <tr>
-                            <td><?php echo $row['train_id']; ?></td>
-                            <td><?php echo $row['train_name']; ?></td>
-                            <td><?php echo $row['train_type']; ?></td>
-                            <td><?php echo $row['total_seats']; ?></td>
-                            <td><?php echo date('Y-m-d H:i', strtotime($row['created_at'])); ?></td>
-                            <td class="action-buttons">
-                                <button onclick="editTrain(<?php echo htmlspecialchars(json_encode($row)); ?>)" class="btn btn-primary btn-small">Edit</button>
-                                <button onclick="deleteTrain(<?php echo $row['train_id']; ?>, '<?php echo $row['train_name']; ?>')" class="btn btn-danger btn-small">Delete</button>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6" style="text-align: center;">No trains found</td>
-                        </tr>
+                    <?php 
+                    if ($trains_result->num_rows > 0):
+                        while($row = $trains_result->fetch_assoc()): 
+                    ?>
+                    <tr>
+                        <td><?php echo $row['train_id']; ?></td>
+                        <td><?php echo $row['train_name']; ?></td>
+                        <td><?php echo $row['train_type']; ?></td>
+                        <td><?php echo $row['total_seats']; ?></td>
+                        <td><?php echo date('Y-m-d H:i', strtotime($row['created_at'])); ?></td>
+                        <td>
+                            <a href="?edit_id=<?php echo $row['train_id']; ?>" class="btn-small btn-primary">Edit</a>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this train?');">
+                                <input type="hidden" name="operation" value="delete">
+                                <input type="hidden" name="train_id" value="<?php echo $row['train_id']; ?>">
+                                <button type="submit" name="action" value="generate" class="btn-small btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php 
+                        endwhile;
+                    else:
+                    ?>
+                    <tr>
+                        <td colspan="6" style="text-align: center;">No trains found</td>
+                    </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>✏️ Edit Train</h2>
+    <!-- Delete Confirmation -->
+    <?php if ($showQueryBox && isset($_POST['operation']) && $_POST['operation'] == 'delete'): ?>
+    <div class="card">
+        <h2>🗑️ Delete Train</h2>
+        <form method="POST" action="">
+            <div class="query-section">
+                <h3>📝 Generated SQL Query:</h3>
+                <textarea class="query-box" name="query" readonly><?php echo $generatedQuery; ?></textarea>
             </div>
-            <form method="POST" action="">
-                <input type="hidden" name="operation" value="update">
-                <input type="hidden" name="train_id" id="edit_train_id">
-                <div class="form-group">
-                    <label>Train Name *</label>
-                    <input type="text" name="train_name" id="edit_train_name" required>
-                </div>
-                <div class="form-group">
-                    <label>Train Type *</label>
-                    <select name="train_type" id="edit_train_type" required>
-                        <option value="Express">Express</option>
-                        <option value="Intercity">Intercity</option>
-                        <option value="Local">Local</option>
-                        <option value="Mail">Mail</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Total Seats *</label>
-                    <input type="number" name="total_seats" id="edit_total_seats" min="1" required>
-                </div>
-                
-                <div class="btn-group">
-                    <button type="submit" name="action" value="generate" class="btn btn-primary">Generate UPDATE Query</button>
-                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="deleteModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>🗑️ Delete Train</h2>
+            <p class="warning">⚠️ Warning: This will permanently delete the train and all related records!</p>
+            <div class="btn-group">
+                <button type="submit" name="action" value="execute" class="btn btn-danger">✓ Confirm Delete</button>
+                <a href="trains.php" class="btn btn-secondary">Cancel</a>
             </div>
-            <form method="POST" action="">
-                <input type="hidden" name="operation" value="delete">
-                <input type="hidden" name="train_id" id="delete_train_id">
-                <p>Are you sure you want to delete train: <strong id="delete_train_name"></strong>?</p>
-                
-                <div class="btn-group">
-                    <button type="submit" name="action" value="generate" class="btn btn-primary">Generate DELETE Query</button>
-                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </div>
+        </form>
     </div>
+    <?php endif; ?>
 
 </div>
-
-<script>
-function editTrain(train) {
-    document.getElementById('edit_train_id').value = train.train_id;
-    document.getElementById('edit_train_name').value = train.train_name;
-    document.getElementById('edit_train_type').value = train.train_type;
-    document.getElementById('edit_total_seats').value = train.total_seats;
-    document.getElementById('editModal').classList.add('active');
-}
-
-function deleteTrain(id, name) {
-    document.getElementById('delete_train_id').value = id;
-    document.getElementById('delete_train_name').textContent = name;
-    document.getElementById('deleteModal').classList.add('active');
-}
-
-function closeModal() {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.classList.remove('active');
-    });
-}
-
-window.onclick = function(event) {
-    if (event.target.classList.contains('modal')) {
-        closeModal();
-    }
-}
-</script>
 
 <?php include '../includes/footer.php'; ?>
