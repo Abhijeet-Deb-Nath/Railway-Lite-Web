@@ -321,25 +321,6 @@ $result = $conn->query($currentQuery['sql']);
         <?php endif; ?>
     </div>
 
-    <!-- JOIN Types Reference -->
-    <div class="card">
-        <h2>📚 JOIN Types Reference</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px;">
-            <div style="background: #f0f9ff; padding: 15px; border-radius: 5px; border-left: 4px solid #3b82f6;">
-                <h3 style="color: #1e40af; margin-bottom: 10px;">INNER JOIN</h3>
-                <p style="font-size: 14px; color: #555;">Returns only matching records from both tables. If no match, record is excluded.</p>
-            </div>
-            <div style="background: #f0fdf4; padding: 15px; border-radius: 5px; border-left: 4px solid #10b981;">
-                <h3 style="color: #065f46; margin-bottom: 10px;">LEFT JOIN</h3>
-                <p style="font-size: 14px; color: #555;">Returns all records from left table, and matching records from right. NULL if no match.</p>
-            </div>
-            <div style="background: #fef3c7; padding: 15px; border-radius: 5px; border-left: 4px solid #f59e0b;">
-                <h3 style="color: #92400e; margin-bottom: 10px;">RIGHT JOIN</h3>
-                <p style="font-size: 14px; color: #555;">Returns all records from right table, and matching records from left. NULL if no match.</p>
-            </div>
-        </div>
-    </div>
-
 </div>
 
 <?php include '../includes/footer.php'; ?>
