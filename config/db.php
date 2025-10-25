@@ -16,13 +16,17 @@ if ($conn->connect_error) {
 // Set charset to UTF-8
 $conn->set_charset("utf8mb4");
 
+// Enable exception mode for mysqli
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 // Function to execute query and return result
 function executeQuery($conn, $sql) {
-    $result = $conn->query($sql);
-    if ($result === false) {
-        return ['success' => false, 'error' => $conn->error];
+    try {
+        $result = $conn->query($sql);
+        return ['success' => true, 'result' => $result];
+    } catch (mysqli_sql_exception $e) {
+        return ['success' => false, 'error' => $e->getMessage()];
     }
-    return ['success' => true, 'result' => $result];
 }
 
 // Function to get last insert ID

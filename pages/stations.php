@@ -58,13 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
-        $executedQuery = $generatedQuery;
-        $showQueryBox = true;
+        $operation = $_POST['operation'] ?? '';
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
-            $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
-            
             // For INSERT/UPDATE/DELETE - redirect to refresh list
             if (stripos($generatedQuery, 'INSERT') === 0 || 
                 stripos($generatedQuery, 'UPDATE') === 0 || 
@@ -75,19 +72,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // For SELECT - execute and show results
             elseif (stripos($generatedQuery, 'SELECT') === 0) {
                 $search_results = $conn->query($generatedQuery);
+                $list_title = 'Search Results';
+                $executedQuery = $generatedQuery;
+                $currentOperation = 'search';
             }
         } else {
-            // Check for duplicate entry error
+            // Keep form filled and show error - DO NOT REDIRECT
+            $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
+            // Check for specific errors
             $error_msg = $result['error'];
             if (strpos($error_msg, 'Duplicate entry') !== false) {
                 if (strpos($error_msg, 'station_code') !== false) {
-                    $message = '<div class="alert alert-error">✗ Error: Station Code already exists! Each station must have a unique station code.</div>';
+                    $message = '<div class="alert alert-error">✗ Error: Station Code already exists! Each station must have a unique station code. Please use a different code.</div>';
                 } else {
                     $message = '<div class="alert alert-error">✗ Error: Duplicate entry detected. Please use unique values.</div>';
                 }
             } else {
                 $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
             }
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -139,11 +146,11 @@ if (isset($_GET['edit_id'])) {
             <div class="form-row">
                 <div class="form-group">
                     <label>Station Name *</label>
-                    <input type="text" name="station_name" required>
+                    <input type="text" name="station_name" value="<?php echo $_POST['station_name'] ?? ''; ?>" required>
                 </div>
                 <div class="form-group">
                     <label>City *</label>
-                    <input type="text" name="city" required list="city-list" placeholder="Type or select existing city">
+                    <input type="text" name="city" value="<?php echo $_POST['city'] ?? ''; ?>" required list="city-list" placeholder="Type or select existing city">
                     <datalist id="city-list">
                         <?php foreach($cities as $city): ?>
                         <option value="<?php echo $city; ?>">
@@ -153,7 +160,7 @@ if (isset($_GET['edit_id'])) {
                 </div>
                 <div class="form-group">
                     <label>Station Code * <small style="color: #666; font-weight: normal;">(Must be unique)</small></label>
-                    <input type="text" name="station_code" required maxlength="10" placeholder="e.g., DKA, CTG">
+                    <input type="text" name="station_code" value="<?php echo $_POST['station_code'] ?? ''; ?>" required maxlength="10" placeholder="e.g., DKA, CTG">
                 </div>
             </div>
             

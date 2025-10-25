@@ -54,13 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
-        $executedQuery = $generatedQuery;
-        $showQueryBox = true;
+        $operation = $_POST['operation'] ?? '';
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
-            $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
-            
             // For INSERT/UPDATE/DELETE - redirect to refresh list
             if (stripos($generatedQuery, 'INSERT') === 0 || 
                 stripos($generatedQuery, 'UPDATE') === 0 || 
@@ -71,9 +68,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // For SELECT - execute and show results
             elseif (stripos($generatedQuery, 'SELECT') === 0) {
                 $search_results = $conn->query($generatedQuery);
+                $list_title = 'Search Results';
+                $executedQuery = $generatedQuery;
+                $currentOperation = 'search';
             }
         } else {
+            // Keep form filled and show error - DO NOT REDIRECT
+            $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
             $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -125,21 +132,21 @@ if (isset($_GET['edit_id'])) {
             <div class="form-row">
                 <div class="form-group">
                     <label>Train Name *</label>
-                    <input type="text" name="train_name" required placeholder="e.g., Suborna Express">
+                    <input type="text" name="train_name" value="<?php echo $_POST['train_name'] ?? ''; ?>" required placeholder="e.g., Suborna Express">
                 </div>
                 <div class="form-group">
                     <label>Train Type *</label>
                     <select name="train_type" required>
                         <option value="">Select Type</option>
-                        <option value="Express">Express</option>
-                        <option value="Intercity">Intercity</option>
-                        <option value="Local">Local</option>
-                        <option value="Mail">Mail</option>
+                        <option value="Express" <?php echo (isset($_POST['train_type']) && $_POST['train_type'] == 'Express') ? 'selected' : ''; ?>>Express</option>
+                        <option value="Intercity" <?php echo (isset($_POST['train_type']) && $_POST['train_type'] == 'Intercity') ? 'selected' : ''; ?>>Intercity</option>
+                        <option value="Local" <?php echo (isset($_POST['train_type']) && $_POST['train_type'] == 'Local') ? 'selected' : ''; ?>>Local</option>
+                        <option value="Mail" <?php echo (isset($_POST['train_type']) && $_POST['train_type'] == 'Mail') ? 'selected' : ''; ?>>Mail</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Total Seats *</label>
-                    <input type="number" name="total_seats" required min="1" placeholder="e.g., 450">
+                    <input type="number" name="total_seats" value="<?php echo $_POST['total_seats'] ?? ''; ?>" required min="1" placeholder="e.g., 450">
                 </div>
             </div>
             

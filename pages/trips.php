@@ -91,8 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($result['success']) {
             // For INSERT/UPDATE/DELETE, redirect to avoid form resubmission
-            if ($operation == 'create') {
-                $executedQuery = $generatedQuery;
+            if ($operation == 'create' || $operation == 'update' || $operation == 'delete') {
                 header("Location: trips.php?success=1");
                 exit;
             }
@@ -104,8 +103,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $currentOperation = 'search'; // Keep on search tab
             }
         } else {
-            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            // Keep form filled and show error - DO NOT REDIRECT
             $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
+            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . ' Please check your input and try again.</div>';
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -155,7 +160,7 @@ $trips_result = $search_results ?? $conn->query($sql_view);
                     <select name="train_id" required>
                         <option value="">Select Train</option>
                         <?php foreach($trains as $train): ?>
-                        <option value="<?php echo $train['train_id']; ?>"><?php echo $train['train_name']; ?></option>
+                        <option value="<?php echo $train['train_id']; ?>" <?php echo (isset($_POST['train_id']) && $_POST['train_id'] == $train['train_id']) ? 'selected' : ''; ?>><?php echo $train['train_name']; ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -164,7 +169,7 @@ $trips_result = $search_results ?? $conn->query($sql_view);
                     <select name="route_id" required>
                         <option value="">Select Route</option>
                         <?php foreach($routes as $route): ?>
-                        <option value="<?php echo $route['route_id']; ?>">
+                        <option value="<?php echo $route['route_id']; ?>" <?php echo (isset($_POST['route_id']) && $_POST['route_id'] == $route['route_id']) ? 'selected' : ''; ?>>
                             <?php echo $route['from_name'] . ' → ' . $route['to_name']; ?>
                         </option>
                         <?php endforeach; ?>
@@ -174,29 +179,29 @@ $trips_result = $search_results ?? $conn->query($sql_view);
             <div class="form-row">
                 <div class="form-group">
                     <label>Trip Date * <small style="color: #666; font-weight: normal;">(Cannot schedule past dates)</small></label>
-                    <input type="date" name="trip_date" required min="<?php echo date('Y-m-d'); ?>">
+                    <input type="date" name="trip_date" value="<?php echo $_POST['trip_date'] ?? ''; ?>" required min="<?php echo date('Y-m-d'); ?>">
                 </div>
                 <div class="form-group">
                     <label>Departure Time *</label>
-                    <input type="time" name="departure_time" required placeholder="HH:MM">
+                    <input type="time" name="departure_time" value="<?php echo $_POST['departure_time'] ?? ''; ?>" required placeholder="HH:MM">
                 </div>
                 <div class="form-group">
                     <label>Arrival Time *</label>
-                    <input type="time" name="arrival_time" required placeholder="HH:MM">
+                    <input type="time" name="arrival_time" value="<?php echo $_POST['arrival_time'] ?? ''; ?>" required placeholder="HH:MM">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label>Available Seats *</label>
-                    <input type="number" name="available_seats" required min="1" max="500" placeholder="e.g., 200">
+                    <input type="number" name="available_seats" value="<?php echo $_POST['available_seats'] ?? ''; ?>" required min="1" max="500" placeholder="e.g., 200">
                 </div>
                 <div class="form-group">
                     <label>Status *</label>
                     <select name="status" required>
-                        <option value="Scheduled">Scheduled</option>
-                        <option value="Running">Running</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Cancelled">Cancelled</option>
+                        <option value="Scheduled" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Scheduled') ? 'selected' : ''; ?>>Scheduled</option>
+                        <option value="Running" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Running') ? 'selected' : ''; ?>>Running</option>
+                        <option value="Completed" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Completed') ? 'selected' : ''; ?>>Completed</option>
+                        <option value="Cancelled" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Cancelled') ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
             </div>

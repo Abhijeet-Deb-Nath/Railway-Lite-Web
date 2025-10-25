@@ -57,13 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
-        $executedQuery = $generatedQuery;
-        $showQueryBox = true;
+        $operation = $_POST['operation'] ?? '';
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
-            $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
-            
             // For INSERT/UPDATE/DELETE - redirect to refresh list
             if (stripos($generatedQuery, 'INSERT') === 0 || 
                 stripos($generatedQuery, 'UPDATE') === 0 || 
@@ -74,15 +71,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // For SELECT - execute and show results
             elseif (stripos($generatedQuery, 'SELECT') === 0) {
                 $search_results = $conn->query($generatedQuery);
+                $list_title = 'Search Results';
+                $executedQuery = $generatedQuery;
+                $currentOperation = 'search';
             }
         } else {
+            // Keep form filled and show error - DO NOT REDIRECT
+            $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
             // Check for constraint errors
             $error_msg = $result['error'];
             if (strpos($error_msg, 'chk_different_stations') !== false) {
-                $message = '<div class="alert alert-error">✗ Error: From Station and To Station must be different!</div>';
+                $message = '<div class="alert alert-error">✗ Error: From Station and To Station must be different! Please select different stations.</div>';
             } else {
                 $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
             }
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -132,7 +139,7 @@ $list_title = $search_results ? "Search Results" : "All Routes";
                     <select name="from_station_id" required>
                         <option value="">Select Station</option>
                         <?php foreach($stations as $station): ?>
-                        <option value="<?php echo $station['station_id']; ?>">
+                        <option value="<?php echo $station['station_id']; ?>" <?php echo (isset($_POST['from_station_id']) && $_POST['from_station_id'] == $station['station_id']) ? 'selected' : ''; ?>>
                             <?php echo $station['station_name'] . ' (' . $station['station_code'] . ')'; ?>
                         </option>
                         <?php endforeach; ?>
@@ -143,7 +150,7 @@ $list_title = $search_results ? "Search Results" : "All Routes";
                     <select name="to_station_id" required>
                         <option value="">Select Station</option>
                         <?php foreach($stations as $station): ?>
-                        <option value="<?php echo $station['station_id']; ?>">
+                        <option value="<?php echo $station['station_id']; ?>" <?php echo (isset($_POST['to_station_id']) && $_POST['to_station_id'] == $station['station_id']) ? 'selected' : ''; ?>>
                             <?php echo $station['station_name'] . ' (' . $station['station_code'] . ')'; ?>
                         </option>
                         <?php endforeach; ?>
@@ -151,11 +158,11 @@ $list_title = $search_results ? "Search Results" : "All Routes";
                 </div>
                 <div class="form-group">
                     <label>Distance (KM) *</label>
-                    <input type="number" name="distance_km" step="0.01" min="0.01" required placeholder="e.g., 320.00">
+                    <input type="number" name="distance_km" value="<?php echo $_POST['distance_km'] ?? ''; ?>" step="0.01" min="0.01" required placeholder="e.g., 320.00">
                 </div>
                 <div class="form-group">
                     <label>Base Fare (৳) *</label>
-                    <input type="number" name="base_fare" step="0.01" min="0.01" required placeholder="e.g., 450.00">
+                    <input type="number" name="base_fare" value="<?php echo $_POST['base_fare'] ?? ''; ?>" step="0.01" min="0.01" required placeholder="e.g., 450.00">
                 </div>
             </div>
             

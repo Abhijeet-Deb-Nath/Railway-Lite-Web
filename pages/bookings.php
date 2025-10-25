@@ -96,8 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($result['success']) {
             // For INSERT/UPDATE/DELETE, redirect to avoid form resubmission
-            if ($operation == 'create') {
-                $executedQuery = $generatedQuery;
+            if ($operation == 'create' || $operation == 'update' || $operation == 'delete') {
                 header("Location: bookings.php?success=1");
                 exit;
             }
@@ -109,8 +108,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $currentOperation = 'search'; // Keep on search tab
             }
         } else {
-            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . '</div>';
+            // Keep form filled and show error - DO NOT REDIRECT
             $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
+            $message = '<div class="alert alert-error">✗ Error: ' . $result['error'] . ' Please check your input and try again.</div>';
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -162,7 +167,7 @@ $bookings_result = $search_results ?? $conn->query($sql_view);
                     <select name="trip_id" required>
                         <option value="">Select Trip</option>
                         <?php foreach($trips as $trip): ?>
-                        <option value="<?php echo $trip['trip_id']; ?>">
+                        <option value="<?php echo $trip['trip_id']; ?>" <?php echo (isset($_POST['trip_id']) && $_POST['trip_id'] == $trip['trip_id']) ? 'selected' : ''; ?>>
                             <?php echo $trip['train_name'] . ' | ' . $trip['from_name'] . ' → ' . $trip['to_name'] . ' | ' . date('d M Y', strtotime($trip['trip_date'])); ?>
                         </option>
                         <?php endforeach; ?>
@@ -173,7 +178,7 @@ $bookings_result = $search_results ?? $conn->query($sql_view);
                     <select name="passenger_id" required>
                         <option value="">Select Passenger</option>
                         <?php foreach($passengers as $passenger): ?>
-                        <option value="<?php echo $passenger['passenger_id']; ?>">
+                        <option value="<?php echo $passenger['passenger_id']; ?>" <?php echo (isset($_POST['passenger_id']) && $_POST['passenger_id'] == $passenger['passenger_id']) ? 'selected' : ''; ?>>
                             <?php echo $passenger['passenger_name'] . ' (' . $passenger['phone'] . ')'; ?>
                         </option>
                         <?php endforeach; ?>
@@ -183,18 +188,18 @@ $bookings_result = $search_results ?? $conn->query($sql_view);
             <div class="form-row">
                 <div class="form-group">
                     <label>Seats Booked * <small style="color: #666; font-weight: normal;">(Max 10 seats per booking)</small></label>
-                    <input type="number" name="seats_booked" required min="1" max="10" placeholder="e.g., 2">
+                    <input type="number" name="seats_booked" value="<?php echo $_POST['seats_booked'] ?? ''; ?>" required min="1" max="10" placeholder="e.g., 2">
                 </div>
                 <div class="form-group">
                     <label>Total Fare (৳) *</label>
-                    <input type="number" name="total_fare" step="0.01" min="0.01" required placeholder="e.g., 900.00">
+                    <input type="number" name="total_fare" value="<?php echo $_POST['total_fare'] ?? ''; ?>" step="0.01" min="0.01" required placeholder="e.g., 900.00">
                 </div>
                 <div class="form-group">
                     <label>Status *</label>
                     <select name="status" required>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Cancelled">Cancelled</option>
+                        <option value="Confirmed" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Confirmed') ? 'selected' : ''; ?>>Confirmed</option>
+                        <option value="Pending" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Pending') ? 'selected' : ''; ?>>Pending</option>
+                        <option value="Cancelled" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Cancelled') ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
             </div>

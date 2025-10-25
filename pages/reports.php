@@ -161,6 +161,73 @@ $queries = [
                   HAVING total_revenue IS NOT NULL
                   ORDER BY total_revenue DESC",
         'type' => 'Complex JOIN with GROUP BY & HAVING'
+    ],
+    'subquery_1' => [
+        'title' => 'Subquery: Passengers Who Spent Above Average',
+        'description' => 'Uses a subquery to find passengers whose total spending is above the average',
+        'sql' => "SELECT p.passenger_id, p.passenger_name, p.phone,
+                  SUM(b.total_fare) as total_spent,
+                  COUNT(b.booking_id) as total_bookings
+                  FROM passengers p
+                  INNER JOIN bookings b ON p.passenger_id = b.passenger_id
+                  GROUP BY p.passenger_id, p.passenger_name, p.phone
+                  HAVING SUM(b.total_fare) > (SELECT AVG(total_fare) FROM bookings)
+                  ORDER BY total_spent DESC",
+        'type' => 'Subquery in HAVING'
+    ],
+    'subquery_2' => [
+        'title' => 'Subquery: Trips with Above Average Bookings',
+        'description' => 'Finds trips that have more bookings than the average',
+        'sql' => "SELECT t.trip_id, t.trip_date, t.departure_time,
+                  tr.train_name,
+                  CONCAT(s1.station_name, ' → ', s2.station_name) as route,
+                  COUNT(b.booking_id) as booking_count
+                  FROM trips t
+                  INNER JOIN trains tr ON t.train_id = tr.train_id
+                  INNER JOIN routes r ON t.route_id = r.route_id
+                  INNER JOIN stations s1 ON r.from_station_id = s1.station_id
+                  INNER JOIN stations s2 ON r.to_station_id = s2.station_id
+                  LEFT JOIN bookings b ON t.trip_id = b.trip_id
+                  GROUP BY t.trip_id, t.trip_date, t.departure_time, tr.train_name, s1.station_name, s2.station_name
+                  HAVING COUNT(b.booking_id) > (
+                      SELECT AVG(booking_count) 
+                      FROM (
+                          SELECT COUNT(*) as booking_count 
+                          FROM bookings 
+                          GROUP BY trip_id
+                      ) as avg_bookings
+                  )
+                  ORDER BY booking_count DESC",
+        'type' => 'Nested Subquery'
+    ],
+    'subquery_3' => [
+        'title' => 'Subquery: Stations with Most Popular Routes',
+        'description' => 'Uses subquery to find stations involved in routes with high trip counts',
+        'sql' => "SELECT s.station_id, s.station_name, s.city, s.station_code,
+                  (SELECT COUNT(*) FROM routes r WHERE r.from_station_id = s.station_id) as routes_from,
+                  (SELECT COUNT(*) FROM routes r WHERE r.to_station_id = s.station_id) as routes_to,
+                  (SELECT COUNT(*) FROM routes r WHERE r.from_station_id = s.station_id OR r.to_station_id = s.station_id) as total_routes
+                  FROM stations s
+                  ORDER BY total_routes DESC, s.station_name",
+        'type' => 'Subquery in SELECT'
+    ],
+    'subquery_4' => [
+        'title' => 'Subquery: Trains Running Profitable Routes',
+        'description' => 'Uses IN subquery to find trains operating on routes with revenue above a threshold',
+        'sql' => "SELECT DISTINCT tr.train_id, tr.train_name, tr.train_type, tr.total_seats
+                  FROM trains tr
+                  INNER JOIN trips t ON tr.train_id = t.train_id
+                  WHERE t.route_id IN (
+                      SELECT r.route_id 
+                      FROM routes r
+                      INNER JOIN trips t2 ON r.route_id = t2.route_id
+                      INNER JOIN bookings b ON t2.trip_id = b.trip_id
+                      WHERE b.status = 'Confirmed'
+                      GROUP BY r.route_id
+                      HAVING SUM(b.total_fare) > 5000
+                  )
+                  ORDER BY tr.train_name",
+        'type' => 'Subquery with IN'
     ]
 ];
 
@@ -172,8 +239,8 @@ $result = $conn->query($currentQuery['sql']);
 
 <div class="main-content">
     <div class="page-header">
-        <h1>📈 Advanced Queries - JOIN Demonstrations</h1>
-        <p>Demonstrating INNER JOIN, LEFT JOIN, RIGHT JOIN, and Complex Multi-Table Joins</p>
+        <h1>📈 Advanced SQL Queries</h1>
+        <p>Demonstrating INNER JOIN, LEFT JOIN, RIGHT JOIN, Subqueries, GROUP BY, HAVING & Aggregate Functions</p>
     </div>
 
     <!-- Query Selector -->

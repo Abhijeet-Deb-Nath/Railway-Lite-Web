@@ -52,13 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif ($action == 'execute' && !empty($_POST['query'])) {
         $generatedQuery = $_POST['query'];
-        $executedQuery = $generatedQuery;
-        $showQueryBox = true;
+        $operation = $_POST['operation'] ?? '';
         $result = executeQuery($conn, $generatedQuery);
         
         if ($result['success']) {
-            $message = '<div class="alert alert-success">✓ Query executed successfully!</div>';
-            
             // For INSERT/UPDATE/DELETE - redirect to refresh list
             if (stripos($generatedQuery, 'INSERT') === 0 || 
                 stripos($generatedQuery, 'UPDATE') === 0 || 
@@ -69,19 +66,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // For SELECT - execute and show results
             elseif (stripos($generatedQuery, 'SELECT') === 0) {
                 $search_results = $conn->query($generatedQuery);
+                $list_title = 'Search Results';
+                $executedQuery = $generatedQuery;
+                $currentOperation = 'search';
             }
         } else {
+            // Keep form filled and show error - DO NOT REDIRECT
+            $showQueryBox = true;
+            $executedQuery = '';  // Don't show in "Executed Query" section since it failed
+            
             // Check for duplicate entry error
             $error_msg = $result['error'];
             if (strpos($error_msg, 'Duplicate entry') !== false) {
                 if (strpos($error_msg, 'phone') !== false) {
-                    $message = '<div class="alert alert-error">✗ Error: Phone number already exists! Each passenger must have a unique phone number.</div>';
+                    $message = '<div class="alert alert-error">✗ Error: Phone number already exists! Each passenger must have a unique phone number. Please use a different number.</div>';
                 } else {
                     $message = '<div class="alert alert-error">✗ Error: Duplicate entry detected. Please use unique values.</div>';
                 }
             } else {
                 $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
             }
+            
+            // For UPDATE/DELETE errors, preserve the operation and data
+            $currentOperation = $operation;
         }
     }
 }
@@ -133,16 +140,16 @@ if (isset($_GET['edit_id'])) {
             <div class="form-row">
                 <div class="form-group">
                     <label>Passenger Name *</label>
-                    <input type="text" name="passenger_name" required placeholder="e.g., Md. Kamal Hossain">
+                    <input type="text" name="passenger_name" value="<?php echo $_POST['passenger_name'] ?? ''; ?>" required placeholder="e.g., Md. Kamal Hossain">
                 </div>
                 <div class="form-group">
                     <label>Phone * <small style="color: #666; font-weight: normal;">(Must be unique)</small></label>
-                    <input type="text" name="phone" required maxlength="15" placeholder="e.g., 01711223344">
+                    <input type="text" name="phone" value="<?php echo $_POST['phone'] ?? ''; ?>" required maxlength="15" placeholder="e.g., 01711223344">
                     <small style="color: #666; font-size: 12px;">💡 Bangladesh format: 01XXXXXXXXX</small>
                 </div>
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" name="email" placeholder="e.g., passenger@email.com">
+                    <input type="email" name="email" value="<?php echo $_POST['email'] ?? ''; ?>" placeholder="e.g., passenger@email.com">
                 </div>
             </div>
             
