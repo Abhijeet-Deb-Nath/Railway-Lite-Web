@@ -23,14 +23,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $passenger_name = escapeString($conn, $_POST['passenger_name']);
             $phone = escapeString($conn, $_POST['phone']);
             $email = escapeString($conn, $_POST['email']);
-            $generatedQuery = "INSERT INTO passengers (passenger_name, phone, email) VALUES ('$passenger_name', '$phone', '$email')";
+            
+            // Server-side BD phone validation
+            if (!preg_match('/^01[3-9][0-9]{8}$/', $phone)) {
+                $message = '<div class="alert alert-error">✗ Invalid phone number format. Phone must be 11 digits starting with 01 (e.g., 01712345678)</div>';
+                $showQueryBox = false;
+                $currentOperation = 'create';
+            } else {
+                $generatedQuery = "INSERT INTO passengers (passenger_name, phone, email) VALUES ('$passenger_name', '$phone', '$email')";
+            }
         }
         elseif ($operation == 'update') {
             $passenger_id = (int)$_POST['passenger_id'];
             $passenger_name = escapeString($conn, $_POST['passenger_name']);
             $phone = escapeString($conn, $_POST['phone']);
             $email = escapeString($conn, $_POST['email']);
-            $generatedQuery = "UPDATE passengers SET passenger_name='$passenger_name', phone='$phone', email='$email' WHERE passenger_id=$passenger_id";
+            
+            // Server-side BD phone validation
+            if (!preg_match('/^01[3-9][0-9]{8}$/', $phone)) {
+                $message = '<div class="alert alert-error">✗ Invalid phone number format. Phone must be 11 digits starting with 01 (e.g., 01712345678)</div>';
+                $showQueryBox = false;
+                $currentOperation = 'update';
+            } else {
+                $generatedQuery = "UPDATE passengers SET passenger_name='$passenger_name', phone='$phone', email='$email' WHERE passenger_id=$passenger_id";
+            }
         }
         elseif ($operation == 'delete') {
             $passenger_id = (int)$_POST['passenger_id'];
@@ -75,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $showQueryBox = true;
             $executedQuery = '';  // Don't show in "Executed Query" section since it failed
             
-            // Check for duplicate entry error
+            // Check for specific error types
             $error_msg = $result['error'];
             if (strpos($error_msg, 'Duplicate entry') !== false) {
                 if (strpos($error_msg, 'phone') !== false) {
@@ -83,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } else {
                     $message = '<div class="alert alert-error">✗ Error: Duplicate entry detected. Please use unique values.</div>';
                 }
+            } elseif (strpos($error_msg, 'chk_phone_bd_format') !== false || strpos($error_msg, 'Check constraint') !== false) {
+                $message = '<div class="alert alert-error">✗ Error: Invalid phone number format. Phone must be 11 digits starting with 01 (e.g., 01712345678). Bangladesh format required.</div>';
             } else {
                 $message = '<div class="alert alert-error">✗ Error: ' . $error_msg . '</div>';
             }
@@ -144,8 +162,15 @@ if (isset($_GET['edit_id'])) {
                 </div>
                 <div class="form-group">
                     <label>Phone * <small style="color: #666; font-weight: normal;">(Must be unique)</small></label>
-                    <input type="text" name="phone" value="<?php echo $_POST['phone'] ?? ''; ?>" required maxlength="15" placeholder="e.g., 01711223344">
-                    <small style="color: #666; font-size: 12px;">💡 Bangladesh format: 01XXXXXXXXX</small>
+                    <input type="text" 
+                           name="phone" 
+                           value="<?php echo $_POST['phone'] ?? ''; ?>" 
+                           required 
+                           pattern="01[3-9][0-9]{8}" 
+                           title="Phone must be 11 digits starting with 01 (e.g., 01712345678)" 
+                           maxlength="11" 
+                           placeholder="01XXXXXXXXX">
+                    <small style="color: #666; font-size: 12px;">💡 Bangladesh format: 01XXXXXXXXX (11 digits)</small>
                 </div>
                 <div class="form-group">
                     <label>Email</label>
@@ -260,7 +285,14 @@ if (isset($_GET['edit_id'])) {
                 </div>
                 <div class="form-group">
                     <label>Phone *</label>
-                    <input type="text" name="phone" value="<?php echo $edit_passenger['phone']; ?>" required maxlength="15">
+                    <input type="text" 
+                           name="phone" 
+                           value="<?php echo $edit_passenger['phone']; ?>" 
+                           required 
+                           pattern="01[3-9][0-9]{8}" 
+                           title="Phone must be 11 digits starting with 01 (e.g., 01712345678)" 
+                           maxlength="11" 
+                           placeholder="01XXXXXXXXX">
                 </div>
                 <div class="form-group">
                     <label>Email</label>
